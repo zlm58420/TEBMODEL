@@ -1,16 +1,28 @@
+import os
 import sys
 import streamlit as st
 
 # 将 set_page_config 移到最前面
 st.set_page_config(page_title="Lung Nodule Risk Prediction", page_icon="🫁", layout="wide")
 
+# 打印当前目录和文件列表
+st.write("Current directory:", os.getcwd())
+st.write("Files in directory:", os.listdir())
+
 # 后续的导入和代码
 import numpy as np
 import packaging.version
-import shap
 import joblib
 import pandas as pd
 import matplotlib.pyplot as plt
+
+# 尝试导入SHAP，如果失败则提供警告
+try:
+    import shap
+    SHAP_AVAILABLE = True
+except ImportError:
+    st.warning("SHAP library not available. Some visualizations will be limited.")
+    SHAP_AVAILABLE = False
 
 # Version compatibility handling
 def patch_numpy_version():
@@ -26,6 +38,80 @@ def patch_numpy_version():
         pass
 
 patch_numpy_version()
+# 安全的模型加载函数
+def safe_load_model(filename):
+    try:
+        # 尝试使用完整路径
+        model = joblib.load(os.path.join(os.getcwd(), filename))
+        st.write(f"Successfully loaded {filename}")
+        return model
+    except Exception as e:
+        st.error(f"Error loading {filename}: {e}")
+        return None
+
+# Load models and features
+model_8mm = safe_load_model('GBC_8mm_model.joblib')
+model_30mm = safe_load_model('GBC_30mm_model.joblib')
+features_8mm = safe_load_model('GBC_8mm_features.joblib')
+features_30mm = safe_load_model('GBC_30mm_features.joblib')
+
+# 检查模型是否成功加载
+if model_8mm is None or model_30mm is None or features_8mm is None or features_30mm is None:
+    st.error("Failed to load one or more model files. Please check the files.")
+    st.stop()
+
+def predict_and_explain(input_data, model, features):
+    # 确保按照原始特征顺序创建 DataFrame
+    input_df = pd.DataFrame([{feature: input_data[feature] for feature in features}])
+    
+    # 后续代码保持不变
+    prediction = model.predict_proba(input_df)
+    malignancy_prob = prediction[0][1]
+
+    # SHAP Explanation
+    if SHAP_AVAILABLE:
+        try:
+            explainer = shap.TreeExplainer(model)
+            shap_values = explainer.shap_values(input_df)
+            
+            # 处理 SHAP 值的索引问题
+            shap_plot_values = shap_values[1] if isinstance(shap_values, list) else shap_values
+        except Exception as e:
+            st.warning(f"SHAP explanation failed: {e}")
+            SHAP_AVAILABLE = False
+    
+    # Results Display
+    result_col1, result_col2 = st.columns([1, 1])
+    
+    with result_col1:
+        st.markdown("### Prediction Results")
+        st.metric("Malignancy Risk", f"{malignancy_prob:.2%}")
+    
+    with result_col2:
+        st.markdown("### Risk Interpretation")
+        if malignancy_prob < 0.2:
+            st.success("Low Risk: Close monitoring recommended")
+        elif malignancy_prob < 0.5:
+            st.warning("Moderate Risk: Further investigation suggested")
+        else:
+            st.error("High Risk: Immediate clinical consultation advised")
+    
+    # SHAP Visualizations
+    if SHAP_AVAILABLE:
+        st.markdown("### Feature Impact Analysis")
+        col_shap1, col_shap2 = st.columns(2)
+        
+        with col_shap1:
+            fig, ax = plt.subplots(figsize=(8, 5))
+            shap.summary_plot(shap_plot_values, input_df, plot_type="bar", show=False)
+            st.pyplot(fig)
+        
+        with col_shap2:
+            fig, ax = plt.subplots(figsize=(8, 5))
+            shap.summary_plot(shap_plot_values, input_df, show=False)
+            st.pyplot(fig)
+
+# 其余代码保持不变
 
 # Custom CSS for styling
 st.markdown("""
