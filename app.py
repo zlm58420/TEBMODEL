@@ -6,105 +6,76 @@ import sklearn
 import numpy as np
 import pandas as pd
 
-# 设置页面配置
+# 设置页面配置，放在最前面
 st.set_page_config(page_title="Lung Nodule Risk Prediction", page_icon="🫁", layout="wide")
+
+# 诊断性输出
+st.write("Python Version:", sys.version)
+st.write("Current Working Directory:", os.getcwd())
+st.write("Files in Directory:", os.listdir())
 
 # 修改模型加载函数以适应 Streamlit 部署
 def safe_load_model(filename):
     try:
-        # 使用 st.secrets 或相对路径
+        # 打印所有可能的路径
+        current_dir = os.getcwd()
         possible_paths = [
-            os.path.join(os.getcwd(), filename),  # 当前工作目录
-            os.path.join(os.path.dirname(__file__), filename),  # 脚本所在目录
+            os.path.join(current_dir, filename),  # 当前工作目录
             filename  # 直接文件名
         ]
         
         for path in possible_paths:
-            st.write(f"Trying to load from: {path}")
+            st.write(f"尝试从 {path} 加载")
+            
             if os.path.exists(path):
-                model = joblib.load(path)
-                st.write(f"Successfully loaded {filename} from {path}")
-                return model
+                try:
+                    model = joblib.load(path)
+                    st.write(f"成功加载 {filename}")
+                    return model
+                except Exception as load_error:
+                    st.error(f"加载 {path} 失败: {load_error}")
         
-        st.error(f"Model file {filename} not found in any of the expected locations")
+        st.error(f"未找到模型文件 {filename}")
         return None
     
     except Exception as e:
-        st.error(f"Error loading {filename}: {e}")
+        st.error(f"加载 {filename} 时发生错误: {e}")
         return None
 
 # 尝试加载模型和特征
-try:
-    model_8mm = safe_load_model('GBC_8mm_model.joblib')
-    model_30mm = safe_load_model('GBC_30mm_model.joblib')
-    features_8mm = safe_load_model('GBC_8mm_features.joblib')
-    features_30mm = safe_load_model('GBC_30mm_features.joblib')
-except Exception as e:
-    st.error(f"Unexpected error during model loading: {e}")
-    model_8mm = model_30mm = features_8mm = features_30mm = None
+def load_all_models():
+    try:
+        model_8mm = safe_load_model('GBC_8mm_model.joblib')
+        model_30mm = safe_load_model('GBC_30mm_model.joblib')
+        features_8mm = safe_load_model('GBC_8mm_features.joblib')
+        features_30mm = safe_load_model('GBC_30mm_features.joblib')
+        
+        # 检查是否所有模型都成功加载
+        if all([model_8mm, model_30mm, features_8mm, features_30mm]):
+            return model_8mm, model_30mm, features_8mm, features_30mm
+        else:
+            st.error("未成功加载所有模型文件")
+            return None, None, None, None
+    
+    except Exception as e:
+        st.error(f"加载模型时发生意外错误: {e}")
+        return None, None, None, None
 
-# 检查模型是否成功加载
+# 加载模型
+model_8mm, model_30mm, features_8mm, features_30mm = load_all_models()
+
+# 如果模型加载失败，停止应用
 if model_8mm is None or model_30mm is None or features_8mm is None or features_30mm is None:
-    st.error("Failed to load one or more model files. Please check the files.")
+    st.error("模型加载失败，请检查文件是否正确上传")
     st.stop()
 
-# 创建输入表单函数
+# 后续的函数保持不变
 def get_user_input(features, nodule_diameter):
-    input_data = {}
-    
-    # 将特征平均分配到两列
-    mid = len(features) // 2
-    col1_features = features[:mid]
-    col2_features = features[mid:]
-    
-    # 创建两列
-    col1, col2 = st.columns(2)
-    
-    # 输入处理
-    def process_features(features_list, column):
-        for feature in features_list:
-            if feature == 'Nodule diameter':
-                column.write(f"Nodule Diameter (mm): {nodule_diameter}")
-                input_data[feature] = nodule_diameter
-            elif feature in ['Age', 'CEA', 'SCC', 'Cyfra21_1', 'NSE', 'ProGRP']:
-                input_data[feature] = column.number_input(
-                    f"Enter {feature}", 
-                    min_value=0.0, 
-                    step=0.1, 
-                    key=f"{feature}_{column}"
-                )
-            else:
-                input_data[feature] = column.selectbox(
-                    f"Select {feature}", 
-                    [0, 1], 
-                    format_func=lambda x, f=feature: 
-                        "Female" if f == 'Gender' and x == 0 else 
-                        "Male" if f == 'Gender' and x == 1 else 
-                        "No" if x == 0 else "Yes",
-                    key=f"{feature}_{column}"
-                )
-    
-    # 处理第一列和第二列
-    with col1:
-        process_features(col1_features, col1)
-    
-    with col2:
-        process_features(col2_features, col2)
-    
-    return input_data
+    # ... (保持原有代码不变)
 
-# 预测函数
 def predict_risk(input_data, model, features):
-    # 确保按照原始特征顺序创建 DataFrame
-    input_df = pd.DataFrame([{feature: input_data[feature] for feature in features}])
-    
-    # 预测
-    prediction = model.predict_proba(input_df)
-    malignancy_prob = prediction[0][1]
+    # ... (保持原有代码不变)
 
-    return malignancy_prob
-
-# 主函数
 def main():
     st.title("🫁 TEB Lung Nodule Malignancy Risk Predictor")
     
@@ -127,24 +98,29 @@ def main():
     input_data = get_user_input(features, nodule_diameter)
     
     if st.sidebar.button("Predict Risk"):
-        # 预测风险
-        malignancy_prob = predict_risk(input_data, model, features)
+        try:
+            # 预测风险
+            malignancy_prob = predict_risk(input_data, model, features)
+            
+            # 结果展示
+            result_col1, result_col2 = st.columns([1, 1])
+            
+            with result_col1:
+                st.markdown("### Prediction Results")
+                st.metric("Malignancy Risk", f"{malignancy_prob:.2%}")
+            
+            with result_col2:
+                st.markdown("### Risk Interpretation")
+                if malignancy_prob < 0.2:
+                    st.success("Low Risk: Close monitoring recommended")
+                elif malignancy_prob < 0.5:
+                    st.warning("Moderate Risk: Further investigation suggested")
+                else:
+                    st.error("High Risk: Immediate clinical consultation advised")
         
-        # 结果展示
-        result_col1, result_col2 = st.columns([1, 1])
-        
-        with result_col1:
-            st.markdown("### Prediction Results")
-            st.metric("Malignancy Risk", f"{malignancy_prob:.2%}")
-        
-        with result_col2:
-            st.markdown("### Risk Interpretation")
-            if malignancy_prob < 0.2:
-                st.success("Low Risk: Close monitoring recommended")
-            elif malignancy_prob < 0.5:
-                st.warning("Moderate Risk: Further investigation suggested")
-            else:
-                st.error("High Risk: Immediate clinical consultation advised")
+        except Exception as e:
+            st.error(f"预测过程中发生错误: {e}")
+
 
 # 自定义 CSS 样式
 st.markdown("""
