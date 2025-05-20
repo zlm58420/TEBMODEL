@@ -4,31 +4,44 @@ import joblib
 import streamlit as st
 import sklearn
 import numpy as np
-import packaging.version
 import pandas as pd
-import matplotlib.pyplot as plt
 
-# 将 set_page_config 移到最前面
+# 设置页面配置
 st.set_page_config(page_title="Lung Nodule Risk Prediction", page_icon="🫁", layout="wide")
 
-# 安全的模型加载函数
+# 修改模型加载函数以适应 Streamlit 部署
 def safe_load_model(filename):
     try:
-        # 尝试使用完整路径加载
-        full_path = os.path.join(os.getcwd(), filename)
-        model = joblib.load(full_path)
-        st.write(f"Successfully loaded {filename} from {full_path}")
-        return model
+        # 使用 st.secrets 或相对路径
+        possible_paths = [
+            os.path.join(os.getcwd(), filename),  # 当前工作目录
+            os.path.join(os.path.dirname(__file__), filename),  # 脚本所在目录
+            filename  # 直接文件名
+        ]
+        
+        for path in possible_paths:
+            st.write(f"Trying to load from: {path}")
+            if os.path.exists(path):
+                model = joblib.load(path)
+                st.write(f"Successfully loaded {filename} from {path}")
+                return model
+        
+        st.error(f"Model file {filename} not found in any of the expected locations")
+        return None
+    
     except Exception as e:
         st.error(f"Error loading {filename}: {e}")
-        st.error(f"Full error details: {sys.exc_info()}")
         return None
 
-# 加载模型和特征
-model_8mm = safe_load_model('GBC_8mm_model.joblib')
-model_30mm = safe_load_model('GBC_30mm_model.joblib')
-features_8mm = safe_load_model('GBC_8mm_features.joblib')
-features_30mm = safe_load_model('GBC_30mm_features.joblib')
+# 尝试加载模型和特征
+try:
+    model_8mm = safe_load_model('GBC_8mm_model.joblib')
+    model_30mm = safe_load_model('GBC_30mm_model.joblib')
+    features_8mm = safe_load_model('GBC_8mm_features.joblib')
+    features_30mm = safe_load_model('GBC_30mm_features.joblib')
+except Exception as e:
+    st.error(f"Unexpected error during model loading: {e}")
+    model_8mm = model_30mm = features_8mm = features_30mm = None
 
 # 检查模型是否成功加载
 if model_8mm is None or model_30mm is None or features_8mm is None or features_30mm is None:
