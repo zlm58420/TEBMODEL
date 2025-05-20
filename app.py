@@ -1,6 +1,4 @@
 import sys
-sys.path.append(r'D:\ana\Lib\site-packages')
-
 import streamlit as st
 
 # 将 set_page_config 移到最前面
