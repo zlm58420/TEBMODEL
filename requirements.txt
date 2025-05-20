@@ -7,4 +7,7 @@ shap==0.47.2
 packaging==24.1
 scipy==1.13.1
 streamlit==1.33.0
-rich<14,>=10.14.0
+rich>=10.14.0,<14
+markdown-it-py<4
+pygments<3
+uv==0.1.34
