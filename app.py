@@ -6,43 +6,35 @@ import sklearn
 import numpy as np
 import pandas as pd
 
-# 设置页面配置，放在最前面
-st.set_page_config(page_title="Lung Nodule Risk Prediction", page_icon="🫁", layout="wide")
-
 # 诊断性输出
 st.write("Python Version:", sys.version)
-st.write("Current Working Directory:", os.getcwd())
-st.write("Files in Directory:", os.listdir())
+st.write("Scikit-learn Version:", sklearn.__version__)
 
-# 修改模型加载函数以适应 Streamlit 部署
+# 安全的模型加载函数
 def safe_load_model(filename):
-    try:
-        # 打印所有可能的路径
-        current_dir = os.getcwd()
-        possible_paths = [
-            os.path.join(current_dir, filename),  # 当前工作目录
-            filename  # 直接文件名
-        ]
-        
-        for path in possible_paths:
-            st.write(f"尝试从 {path} 加载")
-            
-            if os.path.exists(path):
-                try:
-                    model = joblib.load(path)
-                    st.write(f"成功加载 {filename}")
-                    return model
-                except Exception as load_error:
-                    st.error(f"加载 {path} 失败: {load_error}")
-        
-        st.error(f"未找到模型文件 {filename}")
-        return None
+    # 尝试多种加载方式
+    possible_paths = [
+        os.path.join(os.getcwd(), filename),
+        filename
+    ]
     
-    except Exception as e:
-        st.error(f"加载 {filename} 时发生错误: {e}")
-        return None
+    for path in possible_paths:
+        st.write(f"尝试从 {path} 加载")
+        
+        if os.path.exists(path):
+            try:
+                # 使用更安全的加载方式
+                with open(path, 'rb') as f:
+                    model = joblib.load(f)
+                st.write(f"成功加载 {filename}")
+                return model
+            except Exception as e:
+                st.error(f"加载 {path} 失败: {e}")
+    
+    st.error(f"未找到模型文件 {filename}")
+    return None
 
-# 尝试加载模型和特征
+# 加载模型的函数
 def load_all_models():
     try:
         model_8mm = safe_load_model('GBC_8mm_model.joblib')
@@ -50,24 +42,21 @@ def load_all_models():
         features_8mm = safe_load_model('GBC_8mm_features.joblib')
         features_30mm = safe_load_model('GBC_30mm_features.joblib')
         
-        # 检查是否所有模型都成功加载
-        if all([model_8mm, model_30mm, features_8mm, features_30mm]):
-            return model_8mm, model_30mm, features_8mm, features_30mm
-        else:
-            st.error("未成功加载所有模型文件")
-            return None, None, None, None
+        return model_8mm, model_30mm, features_8mm, features_30mm
     
     except Exception as e:
-        st.error(f"加载模型时发生意外错误: {e}")
+        st.error(f"加载模型时发生错误: {e}")
         return None, None, None, None
 
 # 加载模型
 model_8mm, model_30mm, features_8mm, features_30mm = load_all_models()
 
-# 如果模型加载失败，停止应用
+# 检查模型是否成功加载
 if model_8mm is None or model_30mm is None or features_8mm is None or features_30mm is None:
-    st.error("模型加载失败，请检查文件是否正确上传")
+    st.error("模型加载失败，请检查文件")
     st.stop()
+
+# 后续代码保持不变...
 
 # 后续的函数保持不变
 def get_user_input(features, nodule_diameter):
