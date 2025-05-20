@@ -1,12 +1,12 @@
 numpy==1.26.4
 pandas==2.2.2
 matplotlib==3.10.1
-scikit-learn==1.2.2
+scikit-learn==1.4.2 --only-binary=:all:
 joblib==1.4.2
 shap==0.47.2
 packaging==24.1
 scipy==1.13.1
 streamlit==1.33.0
-rich==13.5.3
+rich>=10.14.0,<14.0.0
 markdown-it-py<4.0.0
 pygments<3.0.0
