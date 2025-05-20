@@ -11,23 +11,6 @@ import matplotlib.pyplot as plt
 # 将 set_page_config 移到最前面
 st.set_page_config(page_title="Lung Nodule Risk Prediction", page_icon="🫁", layout="wide")
 
-# 打印详细的系统和环境信息
-st.write("Python Version:", sys.version)
-st.write("scikit-learn Version:", sklearn.__version__)
-st.write("joblib Version:", joblib.__version__)
-
-# 打印当前目录和文件列表
-st.write("Current directory:", os.getcwd())
-st.write("Files in directory:", os.listdir())
-
-# 尝试导入SHAP，如果失败则提供警告
-try:
-    import shap
-    SHAP_AVAILABLE = True
-except ImportError:
-    st.warning("SHAP library not available. Some visualizations will be limited.")
-    SHAP_AVAILABLE = False
-
 # 安全的模型加载函数
 def safe_load_model(filename):
     try:
@@ -51,21 +34,6 @@ features_30mm = safe_load_model('GBC_30mm_features.joblib')
 if model_8mm is None or model_30mm is None or features_8mm is None or features_30mm is None:
     st.error("Failed to load one or more model files. Please check the files.")
     st.stop()
-
-# 版本兼容性处理
-def patch_numpy_version():
-    try:
-        import numba
-        current_numpy_version = packaging.version.parse(np.__version__)
-        if current_numpy_version > packaging.version.parse('2.0'):
-            import numba.__init__
-            def _ensure_critical_deps():
-                pass
-            numba.__init__._ensure_critical_deps = _ensure_critical_deps
-    except ImportError:
-        pass
-
-patch_numpy_version()
 
 # 创建输入表单函数
 def get_user_input(features, nodule_diameter):
@@ -112,8 +80,8 @@ def get_user_input(features, nodule_diameter):
     
     return input_data
 
-# 预测和解释函数
-def predict_and_explain(input_data, model, features):
+# 预测函数
+def predict_risk(input_data, model, features):
     # 确保按照原始特征顺序创建 DataFrame
     input_df = pd.DataFrame([{feature: input_data[feature] for feature in features}])
     
@@ -121,21 +89,7 @@ def predict_and_explain(input_data, model, features):
     prediction = model.predict_proba(input_df)
     malignancy_prob = prediction[0][1]
 
-    # SHAP 解释
-    if SHAP_AVAILABLE:
-        try:
-            explainer = shap.TreeExplainer(model)
-            shap_values = explainer.shap_values(input_df)
-            
-            # 处理 SHAP 值的索引问题
-            shap_plot_values = shap_values[1] if isinstance(shap_values, list) else shap_values
-        except Exception as e:
-            st.warning(f"SHAP explanation failed: {e}")
-            return malignancy_prob, None
-    else:
-        return malignancy_prob, None
-
-    return malignancy_prob, shap_plot_values
+    return malignancy_prob
 
 # 主函数
 def main():
@@ -161,7 +115,7 @@ def main():
     
     if st.sidebar.button("Predict Risk"):
         # 预测风险
-        malignancy_prob, shap_plot_values = predict_and_explain(input_data, model, features)
+        malignancy_prob = predict_risk(input_data, model, features)
         
         # 结果展示
         result_col1, result_col2 = st.columns([1, 1])
@@ -178,21 +132,6 @@ def main():
                 st.warning("Moderate Risk: Further investigation suggested")
             else:
                 st.error("High Risk: Immediate clinical consultation advised")
-        
-        # SHAP 可视化
-        if SHAP_AVAILABLE and shap_plot_values is not None:
-            st.markdown("### Feature Impact Analysis")
-            col_shap1, col_shap2 = st.columns(2)
-            
-            with col_shap1:
-                fig, ax = plt.subplots(figsize=(8, 5))
-                shap.summary_plot(shap_plot_values, input_df, plot_type="bar", show=False)
-                st.pyplot(fig)
-            
-            with col_shap2:
-                fig, ax = plt.subplots(figsize=(8, 5))
-                shap.summary_plot(shap_plot_values, input_df, show=False)
-                st.pyplot(fig)
 
 # 自定义 CSS 样式
 st.markdown("""
